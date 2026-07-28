@@ -15,3 +15,4 @@ CREATE TABLE IF NOT EXISTS rejected_orders (
   reason TEXT,
   created_at TIMESTAMP DEFAULT now()
 );
+

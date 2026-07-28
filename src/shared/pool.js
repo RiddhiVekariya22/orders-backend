@@ -12,4 +12,5 @@ function getPoolForShard(index) {
     return pools[index];
 }
 
-module.exports = { getPoolForShard, pools };
+const controlPool = new Pool({ connectionString: process.env.CONTROL_DB_URL });
+module.exports = { getPoolForShard, controlPool, pools };
