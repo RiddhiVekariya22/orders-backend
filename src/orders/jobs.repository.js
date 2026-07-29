@@ -27,4 +27,14 @@ async function getJob(jobId) {
     return result.rows[0] || null;
 }
 
-module.exports = { createJob, updateJobProgress, setJobStatus, getJob };
+async function insertRejectedOrders(jobId, rows) {
+    if (!rows.length) return;
+    const values = rows.map((_, i) => `($1, $${i * 2 + 2}, $${i * 2 + 3})`).join(', ');
+    const params = [jobId, ...rows.flatMap((r) => [JSON.stringify(r.raw_row), r.reason])];
+    await controlPool.query(
+        `INSERT INTO rejected_orders (job_id, raw_row, reason) VALUES ${values}`,
+        params
+    );
+}
+
+module.exports = { createJob, updateJobProgress, setJobStatus, getJob, insertRejectedOrders };

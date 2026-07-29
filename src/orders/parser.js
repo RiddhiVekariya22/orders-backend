@@ -5,17 +5,18 @@ const { validateRow } = require('./validator');
 const BATCH_SIZE = 500;
 
 /**
- * Streams a CSV file, validates each row, and calls onBatch(validRows)
- * and onInvalid(invalidRows) as batches fill up. Returns final counts.
+ * Core streaming parser. Accepts any Node.js Readable stream,
+ * validates each row, and calls onBatch/onInvalid as batches fill up.
+ * Returns final counts.
  */
-function processFile(filePath, { onBatch, onInvalid }) {
+function processStream(readableStream, { onBatch, onInvalid, batchSize = BATCH_SIZE }) {
   return new Promise((resolve, reject) => {
     let validBatch = [];
     let invalidBatch = [];
     let totalValid = 0;
     let totalInvalid = 0;
 
-    const parser = fs.createReadStream(filePath).pipe(
+    const parser = readableStream.pipe(
       parse({ columns: true, trim: true, skip_empty_lines: true })
     );
 
@@ -31,11 +32,11 @@ function processFile(filePath, { onBatch, onInvalid }) {
           totalValid++;
         }
 
-        if (validBatch.length >= BATCH_SIZE) {
+        if (validBatch.length >= batchSize) {
           onBatch([...validBatch]);
           validBatch = [];
         }
-        if (invalidBatch.length >= BATCH_SIZE) {
+        if (invalidBatch.length >= batchSize) {
           onInvalid([...invalidBatch]);
           invalidBatch = [];
         }
@@ -52,4 +53,5 @@ function processFile(filePath, { onBatch, onInvalid }) {
   });
 }
 
-module.exports = { processFile, BATCH_SIZE };
+
+module.exports = { processStream, BATCH_SIZE };

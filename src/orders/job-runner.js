@@ -1,17 +1,22 @@
-const { processFile } = require('./parser');
-const { insertOrder } = require('./repository');
-const { updateJobProgress, setJobStatus } = require('./jobs.repository');
+const { processStream } = require('./parser');
+const { bulkInsertOrders } = require('./repository');
+const { getJob, updateJobProgress, setJobStatus, insertRejectedOrders } = require('./jobs.repository');
+const { getReadStream } = require('../shared/gcs-adapter');
 
-async function runJob(jobId, filePath) {
+async function runJob(jobId) {
   await setJobStatus(jobId, 'processing');
 
   try {
-    await processFile(filePath, {
+    const job = await getJob(jobId);
+    const stream = getReadStream(job.gcs_path);
+
+    await processStream(stream, {
       onBatch: async (rows) => {
-        for (const row of rows) await insertOrder(row);
+        await bulkInsertOrders(rows);
         await updateJobProgress(jobId, { processedDelta: rows.length });
       },
       onInvalid: async (rows) => {
+        await insertRejectedOrders(jobId, rows);
         await updateJobProgress(jobId, { failedDelta: rows.length });
       },
     });

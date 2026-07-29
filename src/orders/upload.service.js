@@ -6,9 +6,8 @@ async function handleUpload(localFilePath, originalFilename) {
   const gcsPath = await uploadToGCS(localFilePath, originalFilename);
   const jobId = await createJob(gcsPath);
 
-  // trigger — change if move to BullMQ later
   setImmediate(() => {
-    runJob(jobId, localFilePath).catch((err) => {
+    runJob(jobId).catch((err) => {
       console.error(`Job ${jobId} failed:`, err.message);
     });
   });
@@ -16,4 +15,4 @@ async function handleUpload(localFilePath, originalFilename) {
   return jobId;
 }
 
-module.exports = { handleUpload, uploadToGCS };
+module.exports = { handleUpload };

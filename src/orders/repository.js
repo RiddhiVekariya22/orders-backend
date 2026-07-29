@@ -64,8 +64,39 @@ async function findByDateRange(startDate, endDate) {
   return results.flatMap((r) => r.rows);
 }
 
+// Bulk insert: group rows by shard, fire one multi-row INSERT per shard
+async function bulkInsertOrders(rows) {
+  // Group rows by their target shard
+  const shardGroups = new Map();
+  for (const row of rows) {
+    const idx = getShardIndex(row.order_date);
+    if (!shardGroups.has(idx)) shardGroups.set(idx, []);
+    shardGroups.get(idx).push(row);
+  }
+
+  // One INSERT per shard, all in parallel
+  await Promise.all(
+    [...shardGroups.entries()].map(([idx, shardRows]) => {
+      const pool = getPoolForShard(idx);
+      const values = shardRows
+        .map((_, i) => `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`)
+        .join(', ');
+      const params = shardRows.flatMap((r) => [
+        r.order_id, r.customer_id, r.order_date, r.order_amount, r.status,
+      ]);
+      return pool.query(
+        `INSERT INTO orders (order_id, customer_id, order_date, order_amount, status)
+         VALUES ${values}
+         ON CONFLICT (order_id) DO NOTHING`,
+        params
+      );
+    })
+  );
+}
+
 module.exports = {
   insertOrder,
+  bulkInsertOrders,
   findByOrderId,
   findByCustomerId,
   findByDateRange,

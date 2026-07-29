@@ -22,4 +22,19 @@ async function uploadToGCS(localFilePath, destFileName) {
   return `gs://${process.env.GCS_BUCKET_NAME}/${destination}`;
 }
 
-module.exports = { uploadToGCS };
+function getReadStream(gcsPath) {
+  if (gcsPath.startsWith('local://')) {
+    const filename = gcsPath.replace('local://', '');
+    const filePath = path.join(__dirname, '../../local-gcs-fallback', filename);
+    return fs.createReadStream(filePath);
+  }
+  // gs://bucket-name/uploads/filename
+  const { Storage } = require('@google-cloud/storage');
+  const storage = new Storage({ projectId: process.env.GCS_PROJECT_ID });
+  const withoutScheme = gcsPath.replace('gs://', '');
+  const bucketName = withoutScheme.split('/')[0];
+  const objectPath = withoutScheme.split('/').slice(1).join('/');
+  return storage.bucket(bucketName).file(objectPath).createReadStream();
+}
+
+module.exports = { uploadToGCS, getReadStream };

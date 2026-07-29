@@ -3,6 +3,7 @@ const fs = require('fs');
 const { Client } = require('pg');
 
 const schema = fs.readFileSync('./schema.sql', 'utf8');
+const jobsSchema = fs.readFileSync('./jobs-schema.sql', 'utf8');
 
 const shardUrls = [
   process.env.SHARD_0_URL,
@@ -20,6 +21,13 @@ async function migrateAll() {
     await client.end();
     console.log(`shard_${i} done`);
   }
+
+  const client = new Client({ connectionString: process.env.CONTROL_DB_URL });
+  await client.connect();
+  console.log('Applying jobs schema to control_db...');
+  await client.query(jobsSchema);
+  await client.end();
+  console.log('control_db done');
 }
 
 migrateAll().catch(console.error);
