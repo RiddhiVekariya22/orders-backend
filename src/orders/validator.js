@@ -50,10 +50,22 @@ async function validateCSVFile(filePath) {
     }
 }
 
+async function validateCSVFileMiddleware(req, res, next) {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+    }
+    try {
+        await validateCSVFile(req.file.path);
+        next();
+    } catch (err) {
+        return res.status(400).json({ error: 'Upload failed', details: err.message });
+    }
+}
+
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isValidUUID(str) {
     return UUID_REGEX.test(str);
 }
 
-module.exports = { validateRow, validateCSVFile, isValidUUID };
+module.exports = { validateRow, validateCSVFile, validateCSVFileMiddleware, isValidUUID };

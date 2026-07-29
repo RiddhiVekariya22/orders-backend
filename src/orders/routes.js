@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const router = express.Router();
 const controller = require('./controller');
+const { validateCSVFileMiddleware } = require('./validator');
 
 const uploadDir = path.join(__dirname, '../../tmp-uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -12,7 +13,7 @@ if (!fs.existsSync(uploadDir)) {
 
 const upload = multer({ dest: uploadDir });
 
-router.post('/upload-orders', upload.single('file'), controller.uploadOrders);
+router.post('/upload-orders', upload.single('file'), validateCSVFileMiddleware, controller.uploadOrders);
 router.get('/orders/:orderId', controller.getOrder);
 router.get('/orders', controller.getOrders);
 router.get('/jobs/:jobId', controller.getJobStatus);

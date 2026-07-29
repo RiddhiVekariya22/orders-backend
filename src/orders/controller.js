@@ -1,19 +1,15 @@
 const { handleUpload } = require('./upload.service');
 const { findByOrderId, findByCustomerId, findByDateRange } = require('./repository');
 const { getJob } = require('./jobs.repository');
-const { validateCSVFile, isValidUUID } = require('./validator');
+const { isValidUUID } = require('./validator');
 
 async function uploadOrders(req, res) {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
-  }
   try {
-    await validateCSVFile(req.file.path);
     const jobId = await handleUpload(req.file.path, req.file.originalname);
     res.status(202).json({ jobId, status: 'pending' });
   } catch (err) {
-    console.error('Upload failed:', err);
-    res.status(400).json({ error: 'Upload failed', details: err.message });
+    console.error('Upload handling failed:', err);
+    res.status(500).json({ error: 'Upload failed', details: err.message });
   }
 }
 

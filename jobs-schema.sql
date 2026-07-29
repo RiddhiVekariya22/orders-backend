@@ -16,3 +16,5 @@ CREATE TABLE IF NOT EXISTS rejected_orders (
   reason TEXT,
   created_at TIMESTAMP DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS idx_rejected_orders_job_id ON rejected_orders(job_id);
