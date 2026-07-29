@@ -1,20 +1,19 @@
 ## Sharding Strategy
-Reason for choosing to shard on order date : For an analytics platform, most users would be seeing dashboards and charts showing trends over a date range of their orders, For the specific use case of speed ecom solutions, I assume that users searching for orders on customer_id wouldnt be as frequent as the date based filtering. 
 
-On the case of searches based on order id, Order ID Lookup Index: global_order_index(order_id, shard_index) table in control_db could eliminate fan-out queries for single-order lookups, this is in scope for future
+- **Reason for choosing to shard on order date**: For an analytics platform, most users would be seeing dashboards and charts showing trends over a date range of their orders, For the specific use case of speed ecom solutions, I assume that users searching for orders on customer_id wouldnt be as frequent as the date based filtering. 
+- **On the case of searches based on order id**: Order ID Lookup Index: global_order_index(order_id, shard_index) table in control_db could eliminate fan-out queries for single-order lookups, this is in scope for future.
 
 ## tradeoffs 
 
-possible uneven shard growth - During some months the orders volumne might be signficantly higher than the other months, this could create uneven shard sizes, unlike other keys like order_id or customer_id.
-
-Write hot-spotting - The current month shard would be heavily used, while other 3 shards not experiencing that much traffic, meaning we cant expect 4x concurrent write throughput. 
+- **possible uneven shard growth**: During some months the orders volume might be significantly higher than the other months, this could create uneven shard sizes, unlike other keys like order_id or customer_id.
+- **Write hot-spotting**: The current month shard would be heavily used, while other 3 shards not experiencing that much traffic, meaning we cant expect 4x concurrent write throughput. 
 
 We accept both costs in exchange for read efficiency: as an analytics
 platform, most user-facing operations are read/query heavy (dashboards,
 date-range reports), so minimizing the number of shards touched per read
 was prioritized over even write distribution. 
 
-Here we have tradded the writes distribution off with the read operation efficiency(minimizing the number of shards touched per read), data uploads are turned into background jobs and focus is on providing fastest responses to the users, and reducing the number of DB reads as much as possible.
+Here we have traded the writes distribution off with the read operation efficiency(minimizing the number of shards touched per read), data uploads are turned into background jobs and focus is on providing fastest responses to the users, and reducing the number of DB reads as much as possible.
 
 ```
                     ┌─────────────────────────┐
@@ -52,23 +51,20 @@ The shard index is computed deterministically from the UTC month of the `order_d
 
 ---
 
-Design Decision
+## Design Decision
 
-Why I choose vertical Sliced architecture instead of a layered one : 
-The current application focuses on a single domain, orders, so a layered
-structure (separate top-level `controllers/`, `services/`, `repositories`, `db/` folders) would have been unnecessary, however if multiple domains are to be added in the future we should refactor to a layered one.
+- **Why I choose vertical Sliced architecture instead of a layered one**: The current application focuses on a single domain, orders, so a layered structure (separate top-level `controllers/`, `services/`, `repositories`, `db/` folders) would have been unnecessary, however if multiple domains are to be added in the future we should refactor to a layered one.
 
-Future Scope :
- BullMQ + Redis. The current `setImmediate` trigger
-demonstrates the async pattern but has real limitations at production
-scale, an in-flight job is lost if the server restarts, there's no
-automatic retry with backoff, and it can't be distributed across multiple
-worker processes. A real queue (BullMQ, backed by Redis) would address
-all three.
+## Performance & Scalability
 
-Due to time constraints I have kept a simpler implementation of JOBs Right now and it would have added infrastructure (a Redis dependency, a separate
-worker process, connection/deployment config) disproportionate to this
-project's actual scale. 
+- CSV files are streamed (never fully loaded into memory) and processed in batches of 500 rows.
+- Inserts are batched per shard as a single multi-row `INSERT ... ON CONFLICT DO NOTHING` per batch, wrapped in a transaction, not row-by-row.
+- `ON CONFLICT DO NOTHING` makes inserts idempotent: re-processing the same file (e.g. after a retry) does not create duplicate rows.
+
+## Future Scope
+
+- **BullMQ + Redis**: The current `setImmediate` trigger demonstrates the async pattern but has real limitations at production scale: an in-flight job is lost if the server restarts, there's no automatic retry with backoff, and it can't be distributed across multiple worker processes. A real queue (BullMQ, backed by Redis) would address all three.
+- Due to time constraints I have kept a simpler implementation of JOBs Right now and it would have added infrastructure (a Redis dependency, a separate worker process, connection/deployment config) disproportionate to this project's actual scale. 
 
 ---
 
