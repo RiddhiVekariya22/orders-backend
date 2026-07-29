@@ -1,0 +1,8 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.env
+tmp-uploads
+local-gcs-fallback
+coverage

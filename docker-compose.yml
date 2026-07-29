@@ -1,0 +1,117 @@
+version: '3.8'
+
+services:
+  shard_0:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: shard_0
+    ports:
+      - "5431:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d shard_0"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - shard_0_data:/var/lib/postgresql/data
+
+  shard_1:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: shard_1
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d shard_1"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - shard_1_data:/var/lib/postgresql/data
+
+  shard_2:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: shard_2
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d shard_2"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - shard_2_data:/var/lib/postgresql/data
+
+  shard_3:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: shard_3
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d shard_3"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - shard_3_data:/var/lib/postgresql/data
+
+  control_db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: control_db
+    ports:
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d control_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - control_db_data:/var/lib/postgresql/data
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      PORT: ${PORT:-3000}
+      SHARD_0_URL: ${SHARD_0_URL}
+      SHARD_1_URL: ${SHARD_1_URL}
+      SHARD_2_URL: ${SHARD_2_URL}
+      SHARD_3_URL: ${SHARD_3_URL}
+      CONTROL_DB_URL: ${CONTROL_DB_URL}
+      GCS_BUCKET_NAME: ${GCS_BUCKET_NAME}
+      GCS_PROJECT_ID: ${GCS_PROJECT_ID}
+    command: sh -c "node src/migrate-all.js && node src/index.js"
+    depends_on:
+      shard_0:
+        condition: service_healthy
+      shard_1:
+        condition: service_healthy
+      shard_2:
+        condition: service_healthy
+      shard_3:
+        condition: service_healthy
+      control_db:
+        condition: service_healthy
+
+volumes:
+  shard_0_data:
+  shard_1_data:
+  shard_2_data:
+  shard_3_data:
+  control_db_data:

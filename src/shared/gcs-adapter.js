@@ -4,6 +4,16 @@ require('dotenv').config();
 
 const USE_LOCAL_FALLBACK = !process.env.GCS_BUCKET_NAME;
 
+function getStorageClient() {
+  const { Storage } = require('@google-cloud/storage');
+  const options = {};
+  if (process.env.GCS_PROJECT_ID) options.projectId = process.env.GCS_PROJECT_ID;
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    options.keyFilename = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  }
+  return new Storage(options);
+}
+
 async function uploadToGCS(localFilePath, destFileName) {
   if (USE_LOCAL_FALLBACK) {
     const destDir = path.join(__dirname, '../../local-gcs-fallback');
@@ -14,8 +24,7 @@ async function uploadToGCS(localFilePath, destFileName) {
     return `local://${destination}`;
   }
 
-  const { Storage } = require('@google-cloud/storage');
-  const storage = new Storage({ projectId: process.env.GCS_PROJECT_ID });
+  const storage = getStorageClient();
   const bucket = storage.bucket(process.env.GCS_BUCKET_NAME);
   const destination = `uploads/${Date.now()}-${destFileName}`;
   await bucket.upload(localFilePath, { destination });
@@ -29,8 +38,7 @@ function getReadStream(gcsPath) {
     return fs.createReadStream(filePath);
   }
   // gs://bucket-name/uploads/filename
-  const { Storage } = require('@google-cloud/storage');
-  const storage = new Storage({ projectId: process.env.GCS_PROJECT_ID });
+  const storage = getStorageClient();
   const withoutScheme = gcsPath.replace('gs://', '');
   const bucketName = withoutScheme.split('/')[0];
   const objectPath = withoutScheme.split('/').slice(1).join('/');
