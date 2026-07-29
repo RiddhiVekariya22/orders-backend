@@ -1,4 +1,5 @@
 const { controlPool } = require('../shared/pool');
+const { withTransaction } = require('../shared/db');
 
 async function createJob(gcsPath) {
     const result = await controlPool.query(
@@ -31,9 +32,11 @@ async function insertRejectedOrders(jobId, rows) {
     if (!rows.length) return;
     const values = rows.map((_, i) => `($1, $${i * 2 + 2}, $${i * 2 + 3})`).join(', ');
     const params = [jobId, ...rows.flatMap((r) => [JSON.stringify(r.raw_row), r.reason])];
-    await controlPool.query(
-        `INSERT INTO rejected_orders (job_id, raw_row, reason) VALUES ${values}`,
-        params
+    await withTransaction(controlPool, (client) =>
+        client.query(
+            `INSERT INTO rejected_orders (job_id, raw_row, reason) VALUES ${values}`,
+            params
+        )
     );
 }
 

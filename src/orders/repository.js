@@ -1,5 +1,6 @@
 const { getPoolForShard } = require('../shared/pool');
 const { getShardIndex } = require('./shard-router');
+const { withTransaction } = require('../shared/db');
 
 async function insertOrder(order) {
   const shardIndex = getShardIndex(order.order_date);
@@ -74,7 +75,7 @@ async function bulkInsertOrders(rows) {
     shardGroups.get(idx).push(row);
   }
 
-  // One INSERT per shard, all in parallel
+  // One transactional INSERT per shard, all in parallel
   await Promise.all(
     [...shardGroups.entries()].map(([idx, shardRows]) => {
       const pool = getPoolForShard(idx);
@@ -84,11 +85,13 @@ async function bulkInsertOrders(rows) {
       const params = shardRows.flatMap((r) => [
         r.order_id, r.customer_id, r.order_date, r.order_amount, r.status,
       ]);
-      return pool.query(
-        `INSERT INTO orders (order_id, customer_id, order_date, order_amount, status)
-         VALUES ${values}
-         ON CONFLICT (order_id) DO NOTHING`,
-        params
+      return withTransaction(pool, (client) =>
+        client.query(
+          `INSERT INTO orders (order_id, customer_id, order_date, order_amount, status)
+           VALUES ${values}
+           ON CONFLICT (order_id) DO NOTHING`,
+          params
+        )
       );
     })
   );
