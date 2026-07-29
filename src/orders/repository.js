@@ -1,22 +1,7 @@
 const { getPoolForShard } = require('../shared/pool');
-const { getShardIndex } = require('./shard-router');
+const { getShardIndex, getShardsForDateRange } = require('./shard-router');
 const { withTransaction } = require('../shared/db');
 
-async function insertOrder(order) {
-  const shardIndex = getShardIndex(order.order_date);
-  const pool = getPoolForShard(shardIndex);
-
-  await pool.query(
-    `INSERT INTO orders (order_id, customer_id, order_date, order_amount, status)
-     VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (order_id) DO NOTHING`,
-    [order.order_id, order.customer_id, order.order_date, order.order_amount, order.status]
-  );
-
-  return shardIndex;
-}
-
-// Fan-out: order_id alone doesn't tell us the shard, so query all 4 in parallel
 async function findByOrderId(orderId) {
   const pools = [0, 1, 2, 3].map(getPoolForShard);
   const results = await Promise.all(
@@ -30,42 +15,43 @@ async function findByOrderId(orderId) {
   return null;
 }
 
-// Fan-out: customer's orders are scattered across month-based shards
-async function findByCustomerId(customerId) {
-  const pools = [0, 1, 2, 3].map(getPoolForShard);
-  const results = await Promise.all(
-    pools.map((pool) =>
-      pool.query('SELECT * FROM orders WHERE customer_id = $1', [customerId])
-    )
-  );
-  return results.flatMap((r) => r.rows);
-}
+/**
+ * Unified order search endpoint handler:
+ * - If date range (startDate & endDate) is present, queries ONLY touched shards.
+ * - If date range is NOT present, fans out to ALL 4 shards.
+ * - Filters by customerId and/or date range depending on query params provided.
+ */
+async function searchOrders({ customerId, startDate, endDate }) {
+  const targetShardIndexes = (startDate && endDate)
+    ? getShardsForDateRange(startDate, endDate)
+    : [0, 1, 2, 3];
 
-// Targeted: date range maps to specific shards via getShardIndex per month touched
-async function findByDateRange(startDate, endDate) {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  const whereClauses = [];
+  const queryParams = [];
 
-  const shardIndexes = new Set();
-  const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
-  while (cursor <= end) {
-    shardIndexes.add(getShardIndex(cursor.toISOString()));
-    cursor.setMonth(cursor.getMonth() + 1);
+  if (customerId) {
+    queryParams.push(customerId);
+    whereClauses.push(`customer_id = $${queryParams.length}`);
   }
 
-  const pools = [...shardIndexes].map(getPoolForShard);
-  const results = await Promise.all(
-    pools.map((pool) =>
-      pool.query(
-        'SELECT * FROM orders WHERE order_date BETWEEN $1 AND $2 ORDER BY order_date',
-        [startDate, endDate]
-      )
-    )
-  );
-  return results.flatMap((r) => r.rows);
+  if (startDate && endDate) {
+    queryParams.push(startDate);
+    whereClauses.push(`order_date >= $${queryParams.length}`);
+    queryParams.push(endDate);
+    whereClauses.push(`order_date <= $${queryParams.length}`);
+  }
+
+  const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+  const sql = `SELECT * FROM orders ${whereSql} ORDER BY order_date DESC`;
+
+  const pools = targetShardIndexes.map(getPoolForShard);
+  const results = await Promise.all(pools.map((pool) => pool.query(sql, queryParams)));
+  
+  const merged = results.flatMap((r) => r.rows);
+  merged.sort((a, b) => new Date(b.order_date) - new Date(a.order_date));
+  return merged;
 }
 
-// Bulk insert: group rows by shard, fire one multi-row INSERT per shard
 async function bulkInsertOrders(rows) {
   // Group rows by their target shard
   const shardGroups = new Map();
@@ -75,7 +61,6 @@ async function bulkInsertOrders(rows) {
     shardGroups.get(idx).push(row);
   }
 
-  // One transactional INSERT per shard, all in parallel
   await Promise.all(
     [...shardGroups.entries()].map(([idx, shardRows]) => {
       const pool = getPoolForShard(idx);
@@ -98,9 +83,7 @@ async function bulkInsertOrders(rows) {
 }
 
 module.exports = {
-  insertOrder,
   bulkInsertOrders,
   findByOrderId,
-  findByCustomerId,
-  findByDateRange,
+  searchOrders,
 };

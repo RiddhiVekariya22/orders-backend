@@ -1,5 +1,5 @@
 const { handleUpload } = require('./upload.service');
-const { findByOrderId, findByCustomerId, findByDateRange } = require('./repository');
+const { findByOrderId, searchOrders } = require('./repository');
 const { getJob } = require('./jobs.repository');
 const { isValidUUID } = require('./validator');
 
@@ -31,13 +31,18 @@ async function getOrder(req, res) {
 async function getOrders(req, res) {
   const { customerId, startDate, endDate } = req.query;
 
-  if (customerId) {
-    const orders = await findByCustomerId(customerId);
-    return res.json(orders);
+  // Validate parameter presence: must provide either customerId or both startDate & endDate
+  const hasCustomerId = Boolean(customerId);
+  const hasDateRange = Boolean(startDate && endDate);
+
+  if (!hasCustomerId && !hasDateRange) {
+    return res.status(400).json({
+      error: 'Provide either customerId, or both startDate and endDate (or all parameters together)',
+    });
   }
 
-  if (startDate && endDate) {
-    const orders = await findByDateRange(startDate, endDate);
+  try {
+    const orders = await searchOrders({ customerId, startDate, endDate });
     return res.json(orders);
   }
 
