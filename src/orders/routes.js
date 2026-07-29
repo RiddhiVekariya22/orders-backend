@@ -1,19 +1,10 @@
 const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const router = express.Router();
 const controller = require('./controller');
+const { parseFileUpload } = require('../shared/upload-middleware');
 const { validateCSVFileMiddleware } = require('./validator');
 
-const uploadDir = path.join(__dirname, '../../tmp-uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const upload = multer({ dest: uploadDir });
-
-router.post('/upload-orders', upload.single('file'), validateCSVFileMiddleware, controller.uploadOrders);
+router.post('/upload-orders', parseFileUpload, validateCSVFileMiddleware, controller.uploadOrders);
 router.get('/orders/:orderId', controller.getOrder);
 router.get('/orders', controller.getOrders);
 router.get('/jobs/:jobId', controller.getJobStatus);

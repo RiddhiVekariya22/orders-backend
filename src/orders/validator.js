@@ -1,4 +1,5 @@
 const fs = require('fs');
+const logger = require('../shared/logger');
 
 const REQUIRED_HEADERS = ['order_id', 'customer_id', 'order_date', 'order_amount', 'status'];
 
@@ -52,12 +53,14 @@ async function validateCSVFile(filePath) {
 
 async function validateCSVFileMiddleware(req, res, next) {
     if (!req.file) {
+        logger.warn('Upload validation failed: No file provided in request');
         return res.status(400).json({ error: 'No file uploaded' });
     }
     try {
         await validateCSVFile(req.file.path);
         next();
     } catch (err) {
+        logger.warn('Upload CSV validation failed', { filename: req.file.originalname, error: err.message });
         return res.status(400).json({ error: 'Upload failed', details: err.message });
     }
 }

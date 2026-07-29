@@ -2,13 +2,16 @@ const { handleUpload } = require('./upload.service');
 const { findByOrderId, searchOrders } = require('./repository');
 const { getJob } = require('./jobs.repository');
 const { isValidUUID } = require('./validator');
+const logger = require('../shared/logger');
 
 async function uploadOrders(req, res) {
+  logger.info('File upload request received', { filename: req.file.originalname, size: req.file.size });
   try {
     const jobId = await handleUpload(req.file.path, req.file.originalname);
+    logger.info('File uploaded and processing job created', { jobId, filename: req.file.originalname });
     res.status(202).json({ jobId, status: 'pending' });
   } catch (err) {
-    console.error('Upload handling failed:', err);
+    logger.error('Upload handling failed', { filename: req.file.originalname, error: err.message });
     res.status(500).json({ error: 'Upload failed', details: err.message });
   }
 }
@@ -23,7 +26,7 @@ async function getOrder(req, res) {
     if (!order) return res.status(404).json({ error: 'Order not found' });
     res.json(order);
   } catch (err) {
-    console.error('getOrder failed:', err);
+    logger.error('getOrder failed', { orderId, error: err.message });
     res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 }
@@ -44,11 +47,10 @@ async function getOrders(req, res) {
   try {
     const orders = await searchOrders({ customerId, startDate, endDate });
     return res.json(orders);
+  } catch (err) {
+    logger.error('getOrders failed', { customerId, startDate, endDate, error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: err.message });
   }
-
-  return res.status(400).json({
-    error: 'Provide either customerId, or both startDate and endDate',
-  });
 }
 
 async function getJobStatus(req, res) {
@@ -61,7 +63,7 @@ async function getJobStatus(req, res) {
     if (!job) return res.status(404).json({ error: 'Job not found' });
     res.json(job);
   } catch (err) {
-    console.error('getJobStatus failed:', err);
+    logger.error('getJobStatus failed', { jobId, error: err.message });
     res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 }
