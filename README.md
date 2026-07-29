@@ -36,7 +36,7 @@ Here we have tradded the writes distribution off with the read operation efficie
 
 The shard index is computed deterministically from the UTC month of the `order_date`:
 
-$$\text{shardIndex} = \text{getUTCMonth}(\text{order\_date}) \pmod 4$$
+`shardIndex = month % 4`
 
 - **Shard 0**: January, May, September
 - **Shard 1**: February, June, October
