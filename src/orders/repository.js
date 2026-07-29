@@ -21,7 +21,7 @@ async function findByOrderId(orderId) {
  * - If date range is NOT present, fans out to ALL 4 shards.
  * - Filters by customerId and/or date range depending on query params provided.
  */
-async function searchOrders({ customerId, startDate, endDate }) {
+async function searchOrders({ customerId, startDate, endDate, cursor, limit = 20 }) {
   const targetShardIndexes = (startDate && endDate)
     ? getShardsForDateRange(startDate, endDate)
     : [0, 1, 2, 3];
@@ -41,15 +41,35 @@ async function searchOrders({ customerId, startDate, endDate }) {
     whereClauses.push(`order_date <= $${queryParams.length}`);
   }
 
+  if (cursor) {
+    queryParams.push(cursor);
+    whereClauses.push(`order_date < $${queryParams.length}`);
+  }
+
+  const fetchLimit = limit + 1; // Fetch 1 extra to check for next page
   const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
-  const sql = `SELECT * FROM orders ${whereSql} ORDER BY order_date DESC`;
+  const sql = `SELECT * FROM orders ${whereSql} ORDER BY order_date DESC LIMIT ${fetchLimit}`;
 
   const pools = targetShardIndexes.map(getPoolForShard);
   const results = await Promise.all(pools.map((pool) => pool.query(sql, queryParams)));
   
   const merged = results.flatMap((r) => r.rows);
   merged.sort((a, b) => new Date(b.order_date) - new Date(a.order_date));
-  return merged;
+
+  const hasNextPage = merged.length > limit;
+  const pagedOrders = merged.slice(0, limit);
+  const nextCursor = hasNextPage && pagedOrders.length > 0
+    ? pagedOrders[pagedOrders.length - 1].order_date
+    : null;
+
+  return {
+    data: pagedOrders,
+    pagination: {
+      nextCursor,
+      hasNextPage,
+      limit,
+    },
+  };
 }
 
 async function bulkInsertOrders(rows) {

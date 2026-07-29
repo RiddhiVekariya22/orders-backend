@@ -113,9 +113,12 @@ describe('controller module', () => {
     });
 
     it('searches and returns orders when customerId is provided', async () => {
-      req.query = { customerId: 'cust-100' };
-      const mockOrders = [{ order_id: 'ord-1' }];
-      searchOrders.mockResolvedValueOnce(mockOrders);
+      req.query = { customerId: 'cust-100', cursor: '2026-05-15T00:00:00Z', limit: '10' };
+      const mockResult = {
+        data: [{ order_id: 'ord-1' }],
+        pagination: { nextCursor: null, hasNextPage: false, limit: 10 },
+      };
+      searchOrders.mockResolvedValueOnce(mockResult);
 
       await controller.getOrders(req, res);
 
@@ -123,14 +126,19 @@ describe('controller module', () => {
         customerId: 'cust-100',
         startDate: undefined,
         endDate: undefined,
+        cursor: '2026-05-15T00:00:00Z',
+        limit: 10,
       });
-      expect(res.json).toHaveBeenCalledWith(mockOrders);
+      expect(res.json).toHaveBeenCalledWith(mockResult);
     });
 
     it('searches and returns orders when date range is provided', async () => {
       req.query = { startDate: '2026-01-01', endDate: '2026-01-31' };
-      const mockOrders = [{ order_id: 'ord-2' }];
-      searchOrders.mockResolvedValueOnce(mockOrders);
+      const mockResult = {
+        data: [{ order_id: 'ord-2' }],
+        pagination: { nextCursor: null, hasNextPage: false, limit: 20 },
+      };
+      searchOrders.mockResolvedValueOnce(mockResult);
 
       await controller.getOrders(req, res);
 
@@ -138,8 +146,10 @@ describe('controller module', () => {
         customerId: undefined,
         startDate: '2026-01-01',
         endDate: '2026-01-31',
+        cursor: undefined,
+        limit: 20,
       });
-      expect(res.json).toHaveBeenCalledWith(mockOrders);
+      expect(res.json).toHaveBeenCalledWith(mockResult);
     });
   });
 

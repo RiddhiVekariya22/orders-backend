@@ -140,9 +140,34 @@ Uploads a CSV file for ingestion. Accepts `multipart/form-data` with `file` fiel
 ```
 
 ### 4. Search Orders
-`GET /orders?customerId=cust-101&startDate=2026-01-01&endDate=2026-06-30`
+`GET /orders?customerId=cust-101&startDate=2026-01-01&endDate=2026-06-30&cursor=2026-05-15T10:00:00.000Z&limit=20`
 
-- Query parameters: `customerId` (optional), `startDate` (optional), `endDate` (optional). Must supply at least `customerId` OR both `startDate` & `endDate`.
+- Query parameters:
+  - `customerId` (optional): Filter orders by customer ID.
+  - `startDate` & `endDate` (optional): Filter orders by date range. Must provide at least `customerId` OR both `startDate` and `endDate`.
+  - `cursor` (optional): ISO date cursor from previous response for fetching next page.
+  - `limit` (optional, default `20`, max `100`): Number of records per page.
+
+**Response (`200 OK`)**:
+```json
+{
+  "data": [
+    {
+      "order_id": "c39a04f2-901d-407b-83ff-183709b18365",
+      "customer_id": "cust-101",
+      "order_date": "2026-05-15T10:00:00.000Z",
+      "order_amount": "150.50",
+      "status": "completed",
+      "created_at": "2026-07-29T07:00:02.000Z"
+    }
+  ],
+  "pagination": {
+    "nextCursor": "2026-05-15T10:00:00.000Z",
+    "hasNextPage": true,
+    "limit": 20
+  }
+}
+```
 
 ### 5. System Health Check
 `GET /health`

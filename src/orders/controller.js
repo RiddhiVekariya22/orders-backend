@@ -32,7 +32,7 @@ async function getOrder(req, res) {
 }
 
 async function getOrders(req, res) {
-  const { customerId, startDate, endDate } = req.query;
+  const { customerId, startDate, endDate, cursor, limit } = req.query;
 
   // Validate parameter presence: must provide either customerId or both startDate & endDate
   const hasCustomerId = Boolean(customerId);
@@ -44,11 +44,19 @@ async function getOrders(req, res) {
     });
   }
 
+  const parsedLimit = limit ? Math.min(100, Math.max(1, parseInt(limit, 10) || 20)) : 20;
+
   try {
-    const orders = await searchOrders({ customerId, startDate, endDate });
-    return res.json(orders);
+    const result = await searchOrders({
+      customerId,
+      startDate,
+      endDate,
+      cursor,
+      limit: parsedLimit,
+    });
+    return res.json(result);
   } catch (err) {
-    logger.error('getOrders failed', { customerId, startDate, endDate, error: err.message });
+    logger.error('getOrders failed', { customerId, startDate, endDate, cursor, error: err.message });
     res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 }
